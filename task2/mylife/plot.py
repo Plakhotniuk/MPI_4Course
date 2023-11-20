@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-data = np.loadtxt('time2.txt')
+data = np.loadtxt('time.txt')
 processes = data[0::10, 0]
 data = [min(data[i:i+10, 1]) for i in range(0, data.shape[0], 10)]
 # print(data)
@@ -25,5 +25,5 @@ plt.grid()
 plt.xlabel('n')
 plt.ylabel('acceleration')
 plt.title('Acceleration dependence on the number of processes')
-plt.savefig('plot2')
+# plt.savefig('plot2')
 plt.show()
