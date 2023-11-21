@@ -9,9 +9,8 @@
 #include <mpi.h>
 
 
-#define TIME 1
-#define SAVE_VTK 0
-
+#define TIME 0
+#define SAVE_VTK 1
 #define ind(i, j) (((i + l->nx) % l->nx) + ((j + l->ny) % l->ny) * (l->nx))
 
 typedef struct {
@@ -71,7 +70,7 @@ int main(int argc, char **argv)
 #endif
 
     life_free(&l);
-
+    MPI_Finalize();
 	return 0;
 }
 
