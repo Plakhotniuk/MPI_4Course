@@ -5,6 +5,12 @@
 #include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <time.h>
+#include <mpi.h>
+
+
+#define TIME 1
+#define SAVE_VTK 0
 
 #define ind(i, j) (((i + l->nx) % l->nx) + ((j + l->ny) % l->ny) * (l->nx))
 
@@ -14,6 +20,10 @@ typedef struct {
 	int *u1;
 	int steps;
 	int save_steps;
+
+    int rank; // current process number, K
+    int num_tasks; // number of all processes, P
+
 } life_t;
 
 void life_init(const char *path, life_t *l);
@@ -23,6 +33,8 @@ void life_save_vtk(const char *path, life_t *l);
 
 int main(int argc, char **argv)
 {
+    MPI_Init(&argc, &argv);
+
 	if (argc != 2) {
 		printf("Usage: %s input file.\n", argv[0]);
 		return 0;
@@ -32,16 +44,34 @@ int main(int argc, char **argv)
 	
 	int i;
 	char buf[100];
+#if TIME
+    double time;
+    if(l.rank == 0) time = MPI_Wtime();
+#endif
 	for (i = 0; i < l.steps; i++) {
 		if (i % l.save_steps == 0) {
+#if SAVE_VTK
 			sprintf(buf, "life_%06d.vtk", i);
 			printf("Saving step %d to '%s'.\n", i, buf);
 			life_save_vtk(buf, &l);
+#endif
 		}
 		life_step(&l);
 	}
-	
-	life_free(&l);
+
+#if TIME
+    if (l.rank == 0) {
+        time = MPI_Wtime() - time;
+        FILE *f;
+        f = fopen("time.txt", "a");
+        assert(f);
+        fprintf(f, "%d %f\n", l.num_tasks, time);
+        fclose(f);
+    }
+#endif
+
+    life_free(&l);
+
 	return 0;
 }
 
@@ -73,6 +103,9 @@ void life_init(const char *path, life_t *l)
 		l->u0[ind(i, j)] = 1;
 		cnt++;
 	}
+    MPI_Comm_size(MPI_COMM_WORLD, &(l->num_tasks));
+    MPI_Comm_rank(MPI_COMM_WORLD, &(l->rank));
+
 	printf("Loaded %d life cells.\n", cnt);
 	fclose(fd);
 }

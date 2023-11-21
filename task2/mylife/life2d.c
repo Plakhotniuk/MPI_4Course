@@ -71,7 +71,7 @@ int main(int argc, char **argv)
 	if (l.rank == 0) {
 		time = MPI_Wtime() - time;
 		FILE *f;
-		f = fopen("time.txt", "a");
+		f = fopen("data/time.txt", "a");
 		assert(f);
 		fprintf(f, "%d %f\n", l.num_tasks, time);
 		fclose(f);
@@ -148,9 +148,10 @@ void life_init(const char *path, life_t *l)
 	printf("Loaded %d life cells.\n", cnt);
 	fclose(fd);
 
-    // Decomposition
+
     MPI_Comm_size(MPI_COMM_WORLD, &(l->num_tasks));
     MPI_Comm_rank(MPI_COMM_WORLD, &(l->rank));
+    // Decomposition
     decomposition(l->ny, l->num_tasks, l->rank, &(l->start), &(l->finish));
     
     printf("#%d: start = %d, end = %d \n", l->rank, l->start, l->finish);
