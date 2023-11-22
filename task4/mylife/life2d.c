@@ -26,6 +26,7 @@ typedef struct {
 
     MPI_Datatype block_type; // standard block type for sending
     MPI_Datatype column_type; // single column type
+    MPI_Datatype gather_type;
 
 } life_t;
 
@@ -37,6 +38,7 @@ void life_save_vtk(const char *path, life_t *l);
 void decomposition(const int N, const int P, const int k, int *start, int *finish);
 void gather_block_data(life_t *l); // gather standard block data in last process
 void gather_data(life_t *l);
+
 
 int main(int argc, char **argv)
 {
@@ -59,7 +61,7 @@ int main(int argc, char **argv)
 
     for (i = 0; i < l.steps; i++) {
         if (i % l.save_steps == 0) {
-            gather_block_data(&l); // gathering data
+            gather_data(&l); // gathering data
 #if SAVE_VTK
             if(l.rank == l.num_tasks - 1){
                 sprintf(buf, "vtk/life_%06d.vtk", i);
@@ -105,13 +107,21 @@ void gather_block_data(life_t *l){
         MPI_Send(l->u0 + ind(l->start, 0), 1, l->block_type, l->num_tasks - 1, 0, MPI_COMM_WORLD);
     }
 }
-void gather_data(life_t *l){
 
+void gather_data(life_t *l)
+{
     int start, finish;
     decomposition(l->nx, l->num_tasks, l->num_tasks - 1, &start, &finish);
-    MPI_Gather(l->u0 + ind(l->start, 0), 1, l->block_type,
-               l->u0 + ind(start, 0), 1, l->block_type, l->num_tasks - 1, MPI_COMM_WORLD);
-
+//    printf("rank: %d, start: %d, gather start: %d\n", l->rank, l->start, start);
+    MPI_Gather(l->u0 + ind(l->start, 0),
+               1,
+               l->gather_type,
+               l->u0 + ind(start, 0),
+               1,
+               l->gather_type,
+               l->num_tasks - 1,
+               MPI_COMM_WORLD
+    );
 }
 
 /** Column decomposition function
@@ -177,8 +187,18 @@ void life_init(const char *path, life_t *l)
     // Create single column for exchanges
     MPI_Type_vector(l->ny, 1, l->nx, MPI_INT, &(l->column_type));
     MPI_Type_commit(&(l->column_type));
+
+    // For gather
+    if(l->rank == l->num_tasks - 1){
+        int dif = finish - start;
+        int last_finish = dif * (l->num_tasks + 1);
+        MPI_Type_create_resized(l->block_type, 0, (last_finish- l->start) * sizeof(int), &(l->gather_type));
+    } else{
+        MPI_Type_create_resized(l->block_type, 0, (l->finish - l->start) * sizeof(int), &(l->gather_type));
+    }
+    MPI_Type_commit(&(l->gather_type));
     
-    printf("#%d: start = %d, end = %d \n", l->rank, l->start, l->finish);
+    printf("#%d: start = %d, finish = %d \n", l->rank, l->start, l->finish);
 
 }
 
@@ -189,6 +209,7 @@ void life_free(life_t *l)
 	l->nx = l->ny = 0;
     MPI_Type_free(&(l->block_type));
     MPI_Type_free(&(l->column_type));
+    MPI_Type_free(&(l->gather_type));
 }
 
 void life_save_vtk(const char *path, life_t *l)
@@ -229,7 +250,6 @@ void life_step(life_t *l)
 //    // column indexes own process
     int own_row_finish = ind(l->finish-1, 0);
     int own_row_start = ind(l->start, 0);
-//
 //
     int next_start, next_finish;
     decomposition(l->nx, l->num_tasks, next_process, &next_start, &next_finish);
