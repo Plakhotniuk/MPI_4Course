@@ -192,7 +192,7 @@ void life_init(const char *path, life_t *l)
     if(l->rank == l->num_tasks - 1){
         int dif = finish - start;
         int last_finish = dif * (l->num_tasks + 1);
-        MPI_Type_create_resized(l->block_type, 0, (last_finish- l->start) * sizeof(int), &(l->gather_type));
+        MPI_Type_create_resized(l->block_type, 0, (last_finish - l->start) * sizeof(int), &(l->gather_type));
     } else{
         MPI_Type_create_resized(l->block_type, 0, (l->finish - l->start) * sizeof(int), &(l->gather_type));
     }
