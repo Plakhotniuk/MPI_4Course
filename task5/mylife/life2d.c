@@ -93,7 +93,7 @@ int main(int argc, char **argv)
 	if (l.rank == 0) {
 		time = MPI_Wtime() - time;
 		FILE *f;
-		f = fopen("data_plot/time.txt", "a");
+		f = fopen("data/time.txt", "a");
 		assert(f);
 		fprintf(f, "%d %f\n", l.num_tasks, time);
 		fclose(f);
