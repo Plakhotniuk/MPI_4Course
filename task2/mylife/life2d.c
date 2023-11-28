@@ -16,7 +16,7 @@ typedef struct {
 	int save_steps;
 
     // Decomposition
-    // N - data size
+    // N - data_plot size
     // P - number of all processes
     // K - current process num
     int rank; // current process number, K
@@ -31,7 +31,7 @@ void life_free(life_t *l);
 void life_step(life_t *l);
 void life_save_vtk(const char *path, life_t *l);
 void decomposition(const int N, const int P, const int k, int *start, int *finish);
-void gather_data(life_t *l); // gather data in last process
+void gather_data(life_t *l); // gather data_plot in last process
 
 int main(int argc, char **argv)
 {
@@ -54,12 +54,12 @@ int main(int argc, char **argv)
 
 	for (i = 0; i < l.steps; i++) {
             if (i % l.save_steps == 0) {
-                gather_data(&l); // gathering data
+                gather_data(&l); // gathering data_plot
             #if SAVE_VTK
             if (l.rank == l.num_tasks - 1) {
                 sprintf(buf, "life_%06d.vtk", i);
                 printf("Saving step %d to '%s'.\n", i, buf);
-                life_save_vtk(buf, &l); // saving data
+                life_save_vtk(buf, &l); // saving data_plot
             }
             #endif
             }
@@ -71,7 +71,7 @@ int main(int argc, char **argv)
 	if (l.rank == 0) {
 		time = MPI_Wtime() - time;
 		FILE *f;
-		f = fopen("data/time.txt", "a");
+		f = fopen("data_plot/time.txt", "a");
 		assert(f);
 		fprintf(f, "%d %f\n", l.num_tasks, time);
 		fclose(f);
@@ -84,7 +84,7 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-/** Gather data in l->num_tasks - 1
+/** Gather data_plot in l->num_tasks - 1
  *
  * @param l
  */

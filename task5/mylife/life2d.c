@@ -21,7 +21,7 @@ typedef struct {
 	int save_steps;
 
     // Decomposition
-    // N - data size
+    // N - data_plot size
     // P - number of all processes
     // K - current process num
     int rank; // current process number, K
@@ -94,7 +94,7 @@ int main(int argc, char **argv)
 	if (l.rank == 0) {
 		time = MPI_Wtime() - time;
 		FILE *f;
-		f = fopen("data/time.txt", "a");
+		f = fopen("data_plot/time.txt", "a");
 		assert(f);
 		fprintf(f, "%d %f\n", l.num_tasks, time);
 		fclose(f);

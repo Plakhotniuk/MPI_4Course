@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-data = np.loadtxt('data/time.txt')
+data = np.loadtxt('data_plot/time.txt')
 processes = data[0::10, 0]
 data = [min(data[i:i+10, 1]) for i in range(0, data.shape[0], 10)]
 
