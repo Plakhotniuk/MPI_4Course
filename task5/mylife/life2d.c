@@ -5,11 +5,8 @@
 
 #define TIME 0
 #define SAVE_VTK 1
+#define DECOMPOSITION_CHECK 0
 
-#define SEND_UP 1
-#define SEND_DOWN 0
-#define RECEIVE_UP 0
-#define RECEIVE_DOWN 1
 
 #define ind(i, j) (((i + l->nx) % l->nx) + ((j + l->ny) % l->ny) * (l->nx))
 
@@ -34,7 +31,7 @@ typedef struct {
     MPI_Comm comm_cart;
     MPI_Comm comm_dims[2]; // row, col communicators
 
-    // New types
+    // Types for gather
     MPI_Datatype block_t;
     MPI_Datatype rows_t;
 
@@ -52,8 +49,10 @@ void life_save_vtk(const char *path, life_t *l);
 void decomposition(const int N, const int P, const int k, int *start, int *finish);
 void life_gather(life_t *l);
 void life_gather_1d(life_t *l, MPI_Comm comm, MPI_Datatype block_t, int ind_send, int ind_recv);
-void exchange_row(life_t *l);
-void exchange_column(life_t *l);
+void exchange_rows(life_t *l);
+void exchange_cols(life_t *l);
+void exchange_corners(life_t *l);
+void exchange(life_t *l);
 
 int main(int argc, char **argv)
 {
@@ -85,8 +84,8 @@ int main(int argc, char **argv)
             }
 #endif
         }
+        exchange(&l);
         life_step(&l);
-        exchange_row(&l);
     }
 
 
@@ -107,13 +106,12 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-
+/** All data gather */
 void life_gather(life_t *l){
-    //printf("%d\n", l->start[1]);
     life_gather_1d(l, l->comm_dims[0], l->block_t, ind(l->start[0], l->start[1]), ind(0, l->start[1]));
     life_gather_1d(l, l->comm_dims[1], l->rows_t, ind(0, l->start[1]), ind(0, 0));
 }
-
+/** Gather along one axis */
 void life_gather_1d(life_t *l, MPI_Comm comm, MPI_Datatype block_t, int ind_send, int ind_recv)
 {
     int size;
@@ -132,11 +130,11 @@ void life_gather_1d(life_t *l, MPI_Comm comm, MPI_Datatype block_t, int ind_send
 
 /** Column decomposition function
  *
- * @param N - number of columns
+ * @param N - number of data
  * @param P - number of all processes
  * @param k - number of current process
- * @param start - pointer to start column
- * @param finish - pointer to finish column
+ * @param start - pointer to start data
+ * @param finish - pointer to finish data
  */
 void decomposition(const int N, const int P, const int k, int *start, int *finish){
     // Assumption: N >> P, N % P << N
@@ -180,7 +178,7 @@ void life_init(const char *path, life_t *l)
 
     MPI_Comm_size(MPI_COMM_WORLD, &(l->num_tasks));
     MPI_Comm_rank(MPI_COMM_WORLD, &(l->rank));
-
+    
     /* Decomposition. */
     MPI_Comm_rank(MPI_COMM_WORLD, &(l->rank));
     MPI_Comm_size(MPI_COMM_WORLD, &(l->num_tasks));
@@ -190,35 +188,32 @@ void life_init(const char *path, life_t *l)
     int periods[2] = {1, 1};
     MPI_Cart_create(MPI_COMM_WORLD, 2, l->dims, periods, 0, &(l->comm_cart));
     MPI_Cart_coords(l->comm_cart, l->rank, 2, l->coords);
-    printf("#%d: coords = {%d, %d}\n", l->rank, l->coords[0], l->coords[1]);
+
     decomposition(l->nx, l->dims[0], l->coords[0], l->start, l->finish);
     decomposition(l->ny, l->dims[1], l->coords[1], l->start+1, l->finish+1);
-
-
-    /* Row/col communicators. */
-    MPI_Comm_split(l->comm_cart, l->coords[0], l->coords[1], l->comm_dims + 0); // rows
-    MPI_Comm_split(l->comm_cart, l->coords[1], l->coords[0], l->comm_dims + 1); // cols
+    
+    // Row/col communicators. 
+    MPI_Comm_split(l->comm_cart, l->coords[1], l->coords[0], l->comm_dims);
+    MPI_Comm_split(l->comm_cart, l->coords[0], l->coords[1], l->comm_dims + 1);
 
     int start[2], finish[2];
     decomposition(l->nx, l->dims[0], 0, start, finish);
     decomposition(l->ny, l->dims[1], l->coords[1], start+1, finish+1);
-    
-    // column block for gather
     MPI_Datatype temp;
+    // Block type for gather
     MPI_Type_vector(finish[1] - start[1], finish[0] - start[0], l->nx, MPI_INT, &temp);
     MPI_Type_create_resized(temp, 0, (finish[0] - start[0]) * sizeof(int), &(l->block_t));
     MPI_Type_commit(&(l->block_t));
-    
-    // row block for gather
+    // Rows type for gather
     decomposition(l->ny, l->dims[1], 0, start+1, finish+1);
     MPI_Type_contiguous(l->nx * (finish[1] - start[1]), MPI_INT, &(l->rows_t));
     MPI_Type_commit(&(l->rows_t));
-    
-    // row for exchange
-    MPI_Type_contiguous(l->finish[0] - l->start[0], MPI_INT, &(l->single_row));
-    MPI_Type_commit(&(l->single_row));
 
-    // column for exchange
+    // Types for exchange
+    // single row
+    MPI_Type_vector(1, l->finish[0] - l->start[0], 0, MPI_INT, &(l->single_row));
+    MPI_Type_commit(&(l->single_row));
+    // single column
     MPI_Type_vector(l->finish[1] - l->start[1], 1, l->nx, MPI_INT, &(l->single_column));
     MPI_Type_commit(&(l->single_column));
 
@@ -234,6 +229,7 @@ void life_free(life_t *l)
     MPI_Type_free(&(l->single_row));
     MPI_Type_free(&(l->single_column));
 
+    MPI_Comm_free(&(l->comm_cart));
     MPI_Comm_free(&(l->comm_dims[0]));
     MPI_Comm_free(&(l->comm_dims[1]));
 }
@@ -266,50 +262,68 @@ void life_save_vtk(const char *path, life_t *l)
 
 }
 
-void exchange_row(life_t *l){
-
-    int rank;
-    MPI_Comm_rank(l->comm_dims[0], &rank); // rank in column
-
-    int next_process = (rank + 1) % l->dims[1]; // next process index
-    int prev_process = (rank + l->dims[1] - 1) % l->dims[1]; // prev process index
-
-//    // row indexes own process
-    int own_row_finish = ind(l->start[0], l->finish[1]-1);
+/** Exchange single rows */
+void exchange_rows(life_t *l){
+    // indexes of single rows for send and receive
+    int own_row_finish = ind(l->start[0], l->finish[1] - 1);
+    int prev_row_finish = ind(l->start[0], l->start[1] - 1);
     int own_row_start = ind(l->start[0], l->start[1]);
+    int next_row_start = ind(l->start[0], l->finish[1]);
 
-    int next_start, next_finish;
-    decomposition(l->ny, l->dims[1], next_process, &next_start, &next_finish);
+    // indexes of precesses for row send and receive
+    int next_process_row = (l->coords[1] + 1) % l->dims[1];
+    int prev_process_row = (l->coords[1] - 1 + l->dims[1]) % l->dims[1];
 
-    int prev_start, prev_finish;
-    decomposition(l->ny, l->dims[1], prev_process, &prev_start, &prev_finish);
+    MPI_Send(l->u0 + own_row_finish, 1, l->single_row, next_process_row, 0, l->comm_dims[1]);
+    MPI_Recv(l->u0 + prev_row_finish, 1, l->single_row, prev_process_row, 0, l->comm_dims[1], MPI_STATUS_IGNORE);
+    MPI_Send(l->u0 + own_row_start, 1, l->single_row, prev_process_row, 0, l->comm_dims[1]);
+    MPI_Recv(l->u0 + next_row_start, 1, l->single_row, next_process_row, 0, l->comm_dims[1], MPI_STATUS_IGNORE);
+}
 
-//    printf("rank: %d, own_row_start: %d, own_row_finish: %d \n",l->rank, own_row_start, own_row_finish);
+/** Exchange single columns */
+void exchange_cols(life_t *l){
+    // indexes of single columns for send and receive
+    int own_col_finish = ind(l->finish[0] - 1, l->start[1]);
+    int prev_col_finish = ind(l->start[0] - 1, l->start[1]);
+    int own_col_start = ind(l->start[0], l->start[1]);
+    int next_col_start = ind(l->finish[0], l->start[1]);
 
-    if (l->rank % 2 == 0) {
-        MPI_Send(l->u0 + own_row_finish, 1, l->single_row, next_process, 0, l->comm_dims[1]);
-        printf("Exchange. rank %d \n", l->rank);
-        MPI_Recv(l->u0 + ind(l->start[0], next_start), 1, l->single_row, next_process, 0, l->comm_dims[1], MPI_STATUS_IGNORE);
-        MPI_Send(l->u0 + own_row_start, 1, l->single_row, prev_process, 0, l->comm_dims[1]);
-        MPI_Recv(l->u0 + ind(l->start[0], prev_finish - 1), 1, l->single_row, prev_process, 0, l->comm_dims[1], MPI_STATUS_IGNORE);
+    // indexes of precesses for column send and receive
+    int next_process_col = (l->coords[0] + 1) % l->dims[0];
+    int prev_process_col = (l->coords[0] - 1 + l->dims[0]) % l->dims[0];
 
-    }
-    if (l->rank % 2 == 1) {
-        MPI_Recv(l->u0 + ind(l->start[0], prev_finish - 1), 1, l->single_row, prev_process, 0, l->comm_dims[1], MPI_STATUS_IGNORE);
-        printf("Exchange. rank %d \n", l->rank);
-        MPI_Send(l->u0 + own_row_start, 1, l->single_row, prev_process, 0, l->comm_dims[1]);
-        MPI_Recv(l->u0 + ind(l->start[0], next_start), 1, l->single_row, next_process, 0, l->comm_dims[1], MPI_STATUS_IGNORE);
-        MPI_Send(l->u0 + own_row_finish, 1, l->single_row, next_process, 0, l->comm_dims[1]);
-    }
+    MPI_Send(l->u0 + own_col_finish, 1, l->single_column, next_process_col, 0, l->comm_dims[0]);
+    MPI_Recv(l->u0 + prev_col_finish, 1, l->single_column, prev_process_col, 0, l->comm_dims[0], MPI_STATUS_IGNORE);
+    MPI_Send(l->u0 + own_col_start, 1, l->single_column, prev_process_col, 0, l->comm_dims[0]);
+    MPI_Recv(l->u0 + next_col_start, 1, l->single_column, next_process_col, 0, l->comm_dims[0], MPI_STATUS_IGNORE);
+}
 
+/** Exchange corners */
+void exchange_corners(life_t *l){
+    int next_process = (l->coords[1] + 1) % l->dims[1];;
+    int prev_process = (l->coords[1] - 1 + l->dims[1]) % l->dims[1];;
+    MPI_Send(l->u0 + ind(l->finish[0], l->finish[1] - 1), 1, MPI_INT, next_process, 0, l->comm_dims[1]);
+    MPI_Recv(l->u0 + ind(l->finish[0], l->start[1] - 1), 1, MPI_INT, prev_process, 0, l->comm_dims[1], MPI_STATUS_IGNORE);
+    MPI_Send(l->u0 + ind(l->start[0] - 1, l->finish[1] - 1), 1, MPI_INT, next_process, 0, l->comm_dims[1]);
+    MPI_Recv(l->u0 + ind(l->start[0] - 1, l->start[1] - 1), 1, MPI_INT, prev_process, 0, l->comm_dims[1], MPI_STATUS_IGNORE);
+
+    MPI_Send(l->u0 + ind(l->start[0] - 1, l->start[1]), 1, MPI_INT, prev_process, 0, l->comm_dims[1]);
+    MPI_Recv(l->u0 + ind(l->start[0] - 1, l->finish[1]), 1, MPI_INT, next_process, 0, l->comm_dims[1], MPI_STATUS_IGNORE);
+    MPI_Send(l->u0 + ind(l->finish[0], l->start[1]), 1, MPI_INT, prev_process, 0, l->comm_dims[1]);
+    MPI_Recv(l->u0 + ind(l->finish[0], l->finish[1]), 1, MPI_INT, next_process, 0, l->comm_dims[1], MPI_STATUS_IGNORE);
+}
+
+/** Exchange all data */
+void exchange(life_t *l){
+    exchange_cols(l);
+    exchange_rows(l);
+    exchange_corners(l);
 }
 
 
 void life_step(life_t *l)
 {
-
 	int i, j;
-
     for (j = l->start[1]; j < l->finish[1]; j++) {
         for (i = l->start[0]; i < l->finish[0]; i++) {
             int n = 0;
@@ -328,8 +342,9 @@ void life_step(life_t *l)
             if ((n == 3 || n == 2) && l->u0[ind(i,j)] == 1) {
                 l->u1[ind(i,j)] = 1;
             }
-            // Visual check
-            //l->u1[ind(i,j)] = l->rank;
+#if DECOMPOSITION_CHECK
+            l->u1[ind(i,j)] = l->rank;
+#endif
         }
     }
 
