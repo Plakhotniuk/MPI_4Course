@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <mpi.h>
 
-#define TIME 0
-#define SAVE_VTK 1
+#define TIME 1
+#define SAVE_VTK 0
 
 #define ind(i, j) (((i + l->nx) % l->nx) + ((j + l->ny) % l->ny) * (l->nx))
 
@@ -75,7 +75,7 @@ int main(int argc, char **argv)
 	if (l.rank == 0) {
 		time = MPI_Wtime() - time;
 		FILE *f;
-		f = fopen("data_plot/time.txt", "a");
+		f = fopen("data/time.txt", "a");
 		assert(f);
 		fprintf(f, "%d %f\n", l.num_tasks, time);
 		fclose(f);
