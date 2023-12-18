@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <mpi.h>
 
-#define TIME 0
-#define SAVE_VTK 1
+#define TIME 1
+#define SAVE_VTK 0
 #define DECOMPOSITION_CHECK 0
 
 

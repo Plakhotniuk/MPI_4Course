@@ -3,11 +3,11 @@ import numpy as np
 
 
 def data_post_processing(data):
-    processes = data[0::10, 0]
-    data = [min(data[i:i+10, 1]) for i in range(0, data.shape[0], 10)]
-    time1 = data[0]
-    data = [time1 / i for i in data]
-    return data, processes
+    processes = data[:, 0]
+    times = data[:, 1]
+    time1 = times[0]
+    times = time1 / times
+    return times, processes
 
 
 data_row = np.loadtxt('../task2/mylife/data/time.txt')

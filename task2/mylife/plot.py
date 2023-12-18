@@ -1,25 +1,18 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-data = np.loadtxt('time.txt')
-processes = data[0::10, 0]
-data = [min(data[i:i+10, 1]) for i in range(0, data.shape[0], 10)]
+data = np.loadtxt('data/time.txt')
+processes = data[:, 0]
+times = data[:, 1]
 
-time1 = data[0]
-data = [time1 / i for i in data]
+time1 = times[0]
+times = time1 / times
 
 
-# def func(x, a, b):
-#     return a*x + b
-#
-# n = 5000
-# t = np.polyfit(size[-n:], time[-n:], 1)
-
-# f = np.poly1d(t)
 xp = np.linspace(np.min(processes), np.max(processes), 100)
 plt.plot(xp, xp, '-', color='blue', label='y = x')
 
-plt.scatter(processes, data, label='measurements')
+plt.scatter(processes, times)
 plt.legend()
 plt.grid()
 plt.xlabel('processes')
