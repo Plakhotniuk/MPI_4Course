@@ -13,8 +13,7 @@
 
 int main(int argc, char* argv[]) {
 
-
-    const int arraySize = 30e6;
+    const int arraySize = 100e6;
     const int nt = std::stoi(argv[1]);
 
     int *arr = new int[arraySize];
