@@ -25,6 +25,33 @@ namespace SortAlgorithms {
         mergeSort(array, mid + 1, end);
         MergeAlgorithms::merge(array, begin, mid, end);
     }
+
+    template<typename T>
+    void mergeSortParallel(T *array,
+                           int const begin,
+                           int const end, const int nt) {
+        // Returns recursively
+        if (begin >= end)
+            return;
+
+        if (nt < 2) {
+            mergeSort(array, begin, end);
+            return;
+        }
+
+        auto mid = begin + (end - begin) / 2;
+        #pragma omp parallel num_threads(2)
+        {
+            #pragma omp sections
+            {
+                #pragma omp section
+                mergeSortParallel(array, begin, mid, nt / 2);
+                #pragma omp section
+                mergeSortParallel(array, mid + 1, end, nt - nt / 2);
+            }
+        }
+        MergeAlgorithms::merge(array, begin, mid, end);
+    }
 }
 
 #endif //MERGESORT_HPP

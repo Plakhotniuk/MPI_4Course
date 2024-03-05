@@ -5,8 +5,7 @@
 #ifndef MERGE_HPP
 #define MERGE_HPP
 
-namespace MergeAlgorithms{
-
+namespace MergeAlgorithms {
     // Merges two subarrays of array[].
     // First subarray is arr[begin..mid]
     // Second subarray is arr[mid+1..end]
@@ -69,6 +68,8 @@ namespace MergeAlgorithms{
             indexOfSubArrayTwo++;
             indexOfMergedArray++;
         }
+        delete [] leftArray;
+        delete [] rightArray;
     }
 }
 
