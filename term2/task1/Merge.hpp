@@ -17,8 +17,8 @@ namespace MergeAlgorithms{
         auto const subArrayTwo = right - mid;
 
         // Create temp arrays
-        auto *leftArray = new int[subArrayOne],
-                *rightArray = new int[subArrayTwo];
+        auto *leftArray = new T[subArrayOne],
+                *rightArray = new T[subArrayTwo];
 
         // Copy data to temp arrays leftArray[]
         // and rightArray[]

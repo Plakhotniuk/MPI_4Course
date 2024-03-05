@@ -2,16 +2,15 @@
 // Created by user on 04.03.24.
 //
 #include <algorithm>
-#include <functional>
 #include <random>
-#include "MergeSort.hpp"
-#include <vector>
+#include <chrono>
 #include <iostream>
-#include <iterator>
+#include "MergeSort.hpp"
 
 
-int main(int argc, char *argv[]) {
-    const int arraySize = 10;
+
+int main() {
+    const int arraySize = 1e6;
 
     int *arr = new int[arraySize];
 
@@ -23,15 +22,12 @@ int main(int argc, char *argv[]) {
 
     for(int i = 0; i < arraySize; ++i) {
         arr[i] = dist(mersenne_engine);
-        std::cout << arr[i] << " ";
     }
-    std::cout << std::endl;
 
+    auto start = std::chrono::high_resolution_clock::now();
     SortAlgorithms::mergeSort(arr, 0, arraySize - 1);
-
-    for(int i = 0; i < arraySize; ++i) {
-        std::cout << arr[i] << " ";
-    }
+    auto sortTime = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - start);
+    std::cout<<"Time: " << sortTime.count() << ", N: " << arraySize << std::endl;
 
     delete [] arr;
 }
